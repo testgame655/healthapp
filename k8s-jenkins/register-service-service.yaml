@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: register-service
+  namespace: bbhealthapp
+spec:
+  selector:
+    app: register-service
+  ports:
+  - port: 8082
+    targetPort: 8082
+    protocol: TCP
+  type: ClusterIP

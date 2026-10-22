@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master-service
+  namespace: bbhealthapp
+  labels:
+    app: master-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: master-service
+  template:
+    metadata:
+      labels:
+        app: master-service
+        tier: backend
+    spec:
+      containers:
+      - name: master-service
+        image: fhodam/healthapp-master-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+          name: http
+        env:
+        - name: SERVER_PORT
+          value: "8081"
+        - name: TOKEN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: TOKEN_SECRET_MASTER
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_PROFILES_ACTIVE
+        - name: FILE_UPLOAD_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: FILE_UPLOAD_DIR
+        - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
+        - name: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
+        volumeMounts:
+        - name: uploads-volume
+          mountPath: /app/useruploads
+        - name: database-volume
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: uploads-volume
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+      - name: database-volume
+        persistentVolumeClaim:
+          claimName: database-pvc

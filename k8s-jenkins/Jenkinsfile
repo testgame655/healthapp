@@ -1,0 +1,135 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE_TAG = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = 'bbhealthapp'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out code from repository...'
+                git branch: 'main', url: 'https://github.com/your-username/healthapp.git'
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                echo 'Building frontend Docker image...'
+                dir('bbhealthapp-frontend') {
+                    sh """
+                        docker build -t fhodam/healthapp-frontend:${DOCKER_IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+
+        stage('Build Master Service') {
+            steps {
+                echo 'Building master service Docker image...'
+                dir('bbhealthapp-backend/bbhealthapp-api-master') {
+                    sh """
+                        docker build -t fhodam/healthapp-master-service:${DOCKER_IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+
+        stage('Build Register Service') {
+            steps {
+                echo 'Building register service Docker image...'
+                dir('bbhealthapp-backend/bbhealthapp-api-register') {
+                    sh """
+                        docker build -t fhodam/healthapp-register-service:${DOCKER_IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+
+        stage('Build Document Service') {
+            steps {
+                echo 'Building document service Docker image...'
+                dir('bbhealthapp-backend/bbhealthapp-api-document') {
+                    sh """
+                        docker build -t fhodam/healthapp-document-service:${DOCKER_IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Pushing images to Docker Hub...'
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
+                        docker push fhodam/healthapp-frontend:${DOCKER_IMAGE_TAG}
+                        docker push fhodam/healthapp-master-service:${DOCKER_IMAGE_TAG}
+                        docker push fhodam/healthapp-register-service:${DOCKER_IMAGE_TAG}
+                        docker push fhodam/healthapp-document-service:${DOCKER_IMAGE_TAG}
+                        docker logout
+                    """
+                }
+            }
+        }
+
+        stage('Update Kubernetes Image Tags') {
+            steps {
+                echo 'Updating Kubernetes manifests with new image tags...'
+                dir('k8s-jenkins') {
+                    sh """
+                        sed -i "s|fhodam/healthapp-frontend:latest|fhodam/healthapp-frontend:${DOCKER_IMAGE_TAG}|g" frontend-deployment.yaml
+                        sed -i "s|fhodam/healthapp-master-service:latest|fhodam/healthapp-master-service:${DOCKER_IMAGE_TAG}|g" master-service-deployment.yaml
+                        sed -i "s|fhodam/healthapp-register-service:latest|fhodam/healthapp-register-service:${DOCKER_IMAGE_TAG}|g" register-service-deployment.yaml
+                        sed -i "s|fhodam/healthapp-document-service:latest|fhodam/healthapp-document-service:${DOCKER_IMAGE_TAG}|g" document-service-deployment.yaml
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'Deploying to Kubernetes (kubeadm)...'
+                dir('k8s-jenkins') {
+                    sh """
+                        kubectl apply -f namespace.yaml
+                        kubectl apply -f configmap.yaml
+                        kubectl apply -f secret.yaml
+                        kubectl apply -f pvc.yaml
+                        kubectl apply -f nginx-config.yaml
+                        kubectl apply -f .
+                        kubectl rollout restart deployment frontend -n ${K8S_NAMESPACE}
+                        kubectl rollout restart deployment master-service -n ${K8S_NAMESPACE}
+                        kubectl rollout restart deployment register-service -n ${K8S_NAMESPACE}
+                        kubectl rollout restart deployment document-service -n ${K8S_NAMESPACE}
+                    """
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo 'Verifying deployment...'
+                sh """
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                    kubectl get svc -n ${K8S_NAMESPACE}
+                    kubectl get pvc -n ${K8S_NAMESPACE}
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+            echo "New images deployed to Kubernetes with tag: ${DOCKER_IMAGE_TAG}"
+        }
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

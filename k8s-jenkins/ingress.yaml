@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: healthapp-ingress
+  namespace: bbhealthapp
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: master-service
+            port:
+              number: 8081
+      - path: /register/
+        pathType: Prefix
+        backend:
+          service:
+            name: register-service
+            port:
+              number: 8082
+      - path: /document/
+        pathType: Prefix
+        backend:
+          service:
+            name: document-service
+            port:
+              number: 8083

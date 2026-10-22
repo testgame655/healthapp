@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: register-service
+  namespace: bbhealthapp
+  labels:
+    app: register-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: register-service
+  template:
+    metadata:
+      labels:
+        app: register-service
+        tier: backend
+    spec:
+      containers:
+      - name: register-service
+        image: fhodam/healthapp-register-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8082
+          name: http
+        env:
+        - name: SERVER_PORT
+          value: "8082"
+        - name: TOKEN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: TOKEN_SECRET_REGISTER
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_PROFILES_ACTIVE
+        - name: SPRING_H2_CONSOLE_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_H2_CONSOLE_ENABLED
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_DATASOURCE_URL
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_DATASOURCE_USERNAME
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_DATASOURCE_PASSWORD
+        - name: MASTER_SVC_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: MASTER_SVC_HOST
+        - name: MASTER_SVC_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: MASTER_SVC_PORT
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        volumeMounts:
+        - name: database-volume
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: database-volume
+        persistentVolumeClaim:
+          claimName: database-pvc
